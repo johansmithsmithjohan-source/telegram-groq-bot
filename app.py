@@ -9,7 +9,7 @@ from datetime import datetime
 from collections import defaultdict
 from flask import Flask, request, jsonify
 import requests
-from groq import Groq
+from grop import Groq
 
 # ============================================
 # CONFIGURATION (from environment variables)
@@ -38,7 +38,8 @@ stats = {
     "started_at": datetime.now().isoformat(),
 }
 
-SYSTEM_PROMPT = """You are Zaro Bot, a friendly AI Telegram chatbot. Reply in SAME language user writes (Hindi/English/Hinglish). Keep replies concise, natural, use emojis. Help with coding, math, knowledge, jokes, facts."""
+SYSTEM_PROMPT = """You are Zaro Bot, a friendly AI Telegram chatbot. Reply in SAME language user writes (as
+i/English/Hinglish). Keep replies concise, natural, use emojis. Help with coding, math, knowledge, jokes, facts."""
 
 app = Flask(__name__)
 
@@ -51,7 +52,7 @@ def send_message(chat_id, text, parse_mode=None):
         r = requests.post(f"{TELEGRAM_API}/sendMessage", json=payload, timeout=10)
         if r.status_code != 200 and parse_mode:
             payload.pop("parse_mode", None)
-            r = requests.post(f"{TELEGRAM_API}/sendMessage", json=payload, timeout=10)
+            r = requests.post(f"TELEGRAM_API}/sendMessage", json=payload, timeout=10)
         return r.json()
     except:
         return None
@@ -59,7 +60,7 @@ def send_message(chat_id, text, parse_mode=None):
 
 def send_chat_action(chat_id):
     try:
-        requests.post(f"{TELEGRAM_API}/sendChat@ction", json={"chat_id": chat_id, "action": "typing"}, timeout=5)
+        requests.post(f"{TELEGRAM_API}/sendChatAction", json={"chat_id": chat_id, "action": "typing"}, timeout=5)
     except:
         pass
 
@@ -70,7 +71,7 @@ def generate_ai_response(user_id, user_message, user_name):
         history = conversation_history[user_id][-MAX_HISTORY:]
         messages.extend(history)
         messages.append({"role": "user", "content": user_message})
-        
+
         completion = groq_client.chat.completions.create(
             model=GROQ_MODEL,
             messages=messages,
@@ -79,34 +80,34 @@ def generate_ai_response(user_id, user_message, user_name):
             top_p=0.95,
         )
         reply = completion.choices[0].message.content.strip()
-        
+
         conversation_history[user_id].append({"role": "user", "content": user_message})
         conversation_history[user_id].append({"role": "assistant", "content": reply})
         if len(conversation_history[user_id]) > MAX_HISTORY * 2:
             conversation_history[user_id] = conversation_history[user_id][-MAX_HISTORY * 2:]
         return reply
     except:
-        return f"Sorry {user_name}, AI is temporarily unavailable!"}
+        return f"Sorry {user_name}, AI is temporarily unavailable! Try again soon."
 
 
-def handle_command(chat_id, user_name, user_id, cmd, text):
+def handle_command(chat_id, user_name, user_id, cmd):
     if cmd == "/start":
-        msg = f"Welcome {user_name}! Im an AI bot powered by Groq. Just chat with me! Type /help for commands."
+        msg = f"👋 Welcome {user_name}! I'm an AI bot powered by Groq AI.\n\nJust chat with me and I'll reply using AI!\nUse /help for commands."
     elif cmd == "/help":
-        msg = "/start - Welcome\n/help - This menu\n/about - About bot\n/clear - Reset memory\n/stats - Bot stats\n/model - AI model info"
+        msg = "📋 Commands:\n/start - Welcome\n/help - This menu\n/about - About bot\n/clear - Reset memory\n/stats - Bot stats\n/model - AI model info"
     elif cmd == "/about":
-        msg = f"Groq AI Bot ( {GROQ_MODEL} )\nPowered by Groq (!⚡\nHosted on Render.com 24/7"
+        msg = f"🤖 Groq AI Bot\n🧠 Model: {GROQ_MODEL}\n⚡ Powered by Groq\n I LIVE on Render.com"
     elif cmd == "/clear":
         if user_id in conversation_history:
             del conversation_history[user_id]
-        msg = "Memory cleared!"
+        msg = "🧹 Memory cleared!"
     elif cmd == "/stats":
         uptime = datetime.now() - datetime.fromisoformat(stats["started_at"])
         hours = int(uptime.total_seconds() // 3600)
         m = int((uptime.total_seconds() % 3600) // 60)
-        msg = f"Msgs: {stats['total_messages']}\nUsers: {len(stats['unique_users'])}\nUptime: {hours}h {m}m\nStatus: LIVE waleert_green"
+        msg = f"📊 Msgs: {stats['total_messages']}\nП�� Users: {len(stats['unique_users'])}\n⏱ � Uptime: {hours}h {m}m\n Status: LIVE ✅"
     elif cmd == "/model":
-        msg = f"Model: {GROQ_MODEL}\nProvider: Groq\nMemory: {MAX_HISTORY} msgs\nType /clear to reset"
+        msg = f"🧠 Model: {GROQ_MODEL}\n⚡ Provider: Groq\n📧 Memory: {MAX_HISTORY} msgs\nType /clear to reset"
     else:
         msg = f"Unknown command: {cmd}. Type /help"
     send_message(chat_id, msg)
@@ -124,11 +125,11 @@ def process_message(update):
         stats["total_messages"] += 1
         stats["unique_users"].add(user_id)
         if not text:
-            send_message(chat_id, "Whoops! I can only handle text messages right now.")
+            send_message(chat_id, "🤖 I can only handle text messages right now!")
             return
         if text.startswith("/"):
             cmd = text.split()[0].lower().split("@")[0]
-            handle_command(chat_id, user_name, user_id, cmd, text)
+            handle_command(chat_id, user_name, user_id, cmd)
             return
         send_chat_action(chat_id)
         reply = generate_ai_response(user_id, text, user_name)
@@ -142,6 +143,8 @@ def home():
     uptime = datetime.now() - datetime.fromisoformat(stats["started_at"])
     return jsonify({
         "status": "LIVE",
+        "bot": "Groq AI Telegram Bot",
+        "model": GROQ_MODEL,
         "total_msgs": stats["total_messages"],
         "users": len(stats["unique_users"]),
         "uptime": int(uptime.total_seconds()),
@@ -166,8 +169,8 @@ def set_webhook():
     if not webhook_url:
         return jsonify({"error": "Provide ?url="}), 400
     full_url = f"{webhook_url.rstrip('/')}/webhook"
-    r = requests.post(f"{TELEGRAM_API}/setWebhook", json={"url": full_url})
-    return jsonify({"Webhook": full_url, "OK": r.json().ok})
+    r = requests.post(f"TELEGRAM_API}/setWebhook", json={"url": full_url})
+    return jsonify({"Webhook": full_url, "OK": r.json().get("ok")})
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
